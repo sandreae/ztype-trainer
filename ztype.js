@@ -631,7 +631,7 @@ ig.module('impact.font').requires('impact.image').defines(function() {
                 ig.system.context.globalAlpha = 1;
             }
             ig.Image.drawCount += text.length;
-        },
+    },
         _drawChar: function(c, targetX, targetY) {
             if (!this.loaded || c < 0 || c >= this.indices.length) {
                 return 0;
@@ -3640,7 +3640,6 @@ ig.module('game.menus.title').requires('game.menus.base', 'game.menus.detailed-s
                 }
             }
 
-            console.log(this.items);
             this.width = ig.system.width / this.scale;
             this.playerPos.x = (ig.system.width - this.ship.width) / 2;
             this.playerPos.y = 400;
@@ -3760,7 +3759,7 @@ ig.module('game.avenir-next').requires('impact.font').defines(function() {
         letterSpacing: 1,
         height: 33,
         firstChar: 32,
-        lastChar: 255,
+        lastChar: 12436,
         _widthForLine: function(s) {
             var O = METRIC_OFFSETS;
             var width = 0;
@@ -4020,7 +4019,9 @@ ig.module('game.entities.enemy').requires('impact.entity', 'impact.font', 'game.
             this.font.letterSpacing = 0;
             this.fontActive.letterSpacing = 0;
             var length = Math.random().map(0, 1, this.wordLength.min, this.wordLength.max).round();
-            this.word = settings.word || this.getWordWithLength(length);
+            // this.word = settings.word || this.getWordWithLength(length);
+            // This is just a placeholder, we need a list of japanese vocabulary later. 
+            this.word = 'あいうえおなにぬねの'
             this.health = this.word.length;
             this.remainingWord = this.word;
             this.hitTimer = new ig.Timer(0);
@@ -4040,9 +4041,7 @@ ig.module('game.entities.enemy').requires('impact.entity', 'impact.font', 'game.
                 else {
                     w = String.fromCharCode('a'.charCodeAt(0) + (Math.random() * 26).floor());
                 }
-                if (!ig.game.targets[w.charAt(0).toLowerCase()].length) {
-                    return w;
-                }
+                return w;
             }
             return w;
         },
@@ -4072,21 +4071,13 @@ ig.module('game.entities.enemy').requires('impact.entity', 'impact.font', 'game.
         },
         drawLabel: function() {
             if (!this.remainingWord.length) {
+                console.log("No remaining word")
                 return;
             }
-            var w = this.font.widthForString(this.word);
-            var x = (this.pos.x - 6).limit(w + 2, ig.system.width - 1) + ig.game._rscreen.x;
-            var y = (this.pos.y + this.size.y - 10).limit(2, ig.system.height - 19) + ig.game._rscreen.y;
-            var bx = ig.system.getDrawPos(x - w - 2);
-            var by = ig.system.getDrawPos(y - 1);
+            console.log("Remaining word: ", this.remainingWord)
             ig.system.context.fillStyle = 'rgba(0,0,0,0.75)';
-            ig.system.context.fillRect(bx, by + 5, w + 8, 24);
-            if (this.targeted) {
-                this.fontActive.draw(this.remainingWord, x + 2, y + 6, ig.Font.ALIGN.RIGHT);
-            } 
-            else {
-                this.font.draw(this.remainingWord, x + 2, y + 6, ig.Font.ALIGN.RIGHT);
-            }
+            ig.system.context.font = '20px san-serif';
+            ig.system.context.fillText(this.remainingWord, this.pos.x - 2, this.pos.y - 6);
         },
         kill: function(silent) {
             if (this.remainingWord.length) {
@@ -5080,6 +5071,7 @@ ig.module('game.main').requires('impact.game', 'impact.font', 'game.menus.about'
         adPage: null ,
         difficulty: (ig.ua.mobile ? 'MOBILE' : 'DESKTOP'),
         keyboard: null ,
+        currentKana: "",
         _screenShake: 0,
         wordlist: null ,
         init: function() {
@@ -5150,6 +5142,12 @@ ig.module('game.main').requires('impact.game', 'impact.font', 'game.menus.about'
                 this.targets[String.fromCharCode(i)] = [];
             }
             for (var c in this._umlautTable) {
+                this.targets[c] = [];
+            }
+            for (var hiraKata of Object.values(this._kana)) {
+                for (const kana of hiraKata) {
+                    this.targets[kana] = [];
+                }
                 this.targets[c] = [];
             }
             this.score = 0;
@@ -5271,15 +5269,15 @@ ig.module('game.main').requires('impact.game', 'impact.font', 'game.menus.about'
             return ent;
         },
         registerTarget: function(letter, ent) {
-            var c = this.translateUmlaut(letter.toLowerCase());
-            this.targets[c].push(ent);
+            // var c = this.translateUmlaut(letter.toLowerCase());
+            this.targets[letter].push(ent);
             if (!this.currentTarget) {
                 this.setExpectedKeys();
             }
         },
         unregisterTarget: function(letter, ent) {
-            var c = this.translateUmlaut(letter.toLowerCase());
-            this.targets[c].erase(ent);
+            // var c = this.translateUmlaut(letter.toLowerCase());
+            this.targets[letter].erase(ent);
             if (!this.currentTarget) {
                 this.setExpectedKeys();
             }
@@ -5291,6 +5289,208 @@ ig.module('game.main').requires('impact.game', 'impact.font', 'game.menus.about'
                     this.keyboard.expectedKeys.push(k);
                 }
             }
+        },
+        _kana: {
+          "a": [
+            "あ",
+            "ア"
+          ],
+          "i": [
+            "い",
+            "イ"
+          ],
+          "u": [
+            "う",
+            "ウ"
+          ],
+          "e": [
+            "え",
+            "エ"
+          ],
+          "o": [
+            "お",
+            "オ"
+          ],
+          "ka": [
+            "か",
+            "カ"
+          ],
+          "ki": [
+            "き",
+            "キ"
+          ],
+          "ku": [
+            "く",
+            "ク"
+          ],
+          "ke": [
+            "け",
+            "ケ"
+          ],
+          "ko": [
+            "こ",
+            "コ"
+          ],
+          "sa": [
+            "さ",
+            "サ"
+          ],
+          "shi": [
+            "し",
+            "シ"
+          ],
+          "su": [
+            "す",
+            "ス"
+          ],
+          "se": [
+            "せ",
+            "セ"
+          ],
+          "so": [
+            "そ",
+            "ソ"
+          ],
+          "ta": [
+            "た",
+            "タ"
+          ],
+          "chi": [
+            "ち",
+            "チ"
+          ],
+          "tsu": [
+            "つ",
+            "ツ"
+          ],
+          "te": [
+            "て",
+            "テ"
+          ],
+          "to": [
+            "と",
+            "ト"
+          ],
+          "na": [
+            "な",
+            "ナ"
+          ],
+          "ni": [
+            "に",
+            "ニ"
+          ],
+          "nu": [
+            "ぬ",
+            "ヌ"
+          ],
+          "ne": [
+            "ね",
+            "ネ"
+          ],
+          "no": [
+            "の",
+            "ノ"
+          ],
+          "ha": [
+            "は",
+            "ハ"
+          ],
+          "hi": [
+            "ひ",
+            "ヒ"
+          ],
+          "fu": [
+            "ふ",
+            "フ"
+          ],
+          "he": [
+            "へ",
+            "ヘ"
+          ],
+          "ho": [
+            "ほ",
+            "ホ"
+          ],
+          "ma": [
+            "ま",
+            "マ"
+          ],
+          "mi": [
+            "み",
+            "ミ"
+          ],
+          "mu": [
+            "む",
+            "ム"
+          ],
+          "me": [
+            "め",
+            "メ"
+          ],
+          "mo": [
+            "も",
+            "モ"
+          ],
+          "ya": [
+            "や",
+            "ヤ"
+          ],
+          "yu": [
+            "ゆ",
+            "ユ"
+          ],
+          "yo": [
+            "よ",
+            "ヨ"
+          ],
+          "ra": [
+            "ら",
+            "ラ"
+          ],
+          "ri": [
+            "り",
+            "リ"
+          ],
+          "ru": [
+            "る",
+            "ロ"
+          ],
+          "re": [
+            "れ",
+            "レ"
+          ],
+          "ro": [
+            "ろ",
+            "ロ"
+          ],
+          "wa": [
+            "わ",
+            "ワ"
+          ],
+          "wo": [
+            "を",
+            "ヲ"
+          ],
+          "nn": [
+            "ん",
+            "ン"
+          ]
+        },
+        partialKana: function(kana) {
+            let partialKana = false;
+            for (const key of Object.keys(this._kana)) {
+                if (key.startsWith(kana)) {
+                    partialKana = true
+                    return partialKana
+                }
+            }
+            return partialKana
+        },
+        fullKana: function(kana) {
+            if (this._kana[kana]) {
+                return true
+            }
+            return false
         },
         _umlautTable: {
             'ß': 's',
@@ -5343,7 +5543,21 @@ ig.module('game.main').requires('impact.game', 'impact.font', 'game.menus.about'
             ev.stopPropagation();
             ev.preventDefault();
             var letter = String.fromCharCode(c).toLowerCase();
-            this.shoot(letter);
+            this.currentKana += letter
+            console.log("current kana: ", this.currentKana)
+            if (!this.partialKana(this.currentKana)) {
+                console.log(`${this.currentKana} not partial kana`)
+                this.currentKana = ""
+            } else if (this.fullKana(this.currentKana)) {
+                console.log(`${this.currentKana} is kana, FIRE `, this._kana[this.currentKana])
+                for (const kana of this._kana[this.currentKana]) {
+                    this.shoot(kana)
+                }
+                this.currentKana = ""
+            }
+            else {
+                console.log(`${this.currentKana} is partial kana`)
+            }
             return false;
         },
         keydown: function(ev) {
@@ -5763,3 +5977,4 @@ ig.module('game.main').requires('impact.game', 'impact.font', 'game.menus.about'
     }
     ig.main('#ztype-game-canvas', ZType, 60, width, height, 1, ig.RiseLoader);
 });
+
