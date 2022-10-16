@@ -3989,6 +3989,7 @@ ig.baked = true;
 ig.module('game.entities.enemy').requires('impact.entity', 'impact.font', 'game.avenir-next', 'game.entities.explosion').defines(function() {
     EntityEnemy = ig.Entity.extend({
         word: 'none',
+        kanji: null,
         remainingWord: 'none',
         health: 8,
         currentLetter: 0,
@@ -4018,15 +4019,18 @@ ig.module('game.entities.enemy').requires('impact.entity', 'impact.font', 'game.
             this.parent(x, y, settings);
             this.font.letterSpacing = 0;
             this.fontActive.letterSpacing = 0;
-            var length = Math.random().map(0, 1, this.wordLength.min, this.wordLength.max).round();
-            // this.word = settings.word || this.getWordWithLength(length);
-            // This is just a placeholder, we need a list of japanese vocabulary later. 
-            this.word = 'あいうえおなにぬねの'
-            this.health = this.word.length;
+            // Get one japanese word in it's kana and kanji form
+            let word = this.getJapaneseWord();
+            // The kana reading
+            this.word = word["kana"];
+            // The kanji itself
+            this.kanji = word["kanji"] || word["english"];
+            // Derive a health value from the words length
+            this.health = this.wordToHealth(this.word);
             this.remainingWord = this.word;
             this.hitTimer = new ig.Timer(0);
             this.dieTimer = new ig.Timer(0);
-            ig.game.registerTarget(this.word.charAt(0), this);
+            ig.game.registerTarget(this.word, this);
             this.angle = this.angleTo(ig.game.player);
             if (!ig.ua.mobile) {
                 this.speed *= ig.game.speedFactor;
@@ -4045,10 +4049,29 @@ ig.module('game.entities.enemy').requires('impact.entity', 'impact.font', 'game.
             }
             return w;
         },
-        target: function() {
+        // Get one Japanese word at random, the returned value
+        // contans the kanji and kana readings.
+        getJapaneseWord: function() {
+            let index = (Math.random() * ig.WORDS.JP.length).floor();
+            return ig.WORDS.JP[index]
+        },
+        // Derive a numerical health value from the passed
+        // word in it's kana reading.
+        wordToHealth: function(word) {
+            let health = 0
+            for (c of word) {
+                // Ignore any "small" characters as these are part of compound
+                // kana.
+                if (!['ょ', 'ゅ', 'ュ', 'ョ', 'っ'].includes(c)) {
+                    health += 1
+                }
+            }
+            return health
+        },
+        target: function(letter) {
             this.targeted = true;
             ig.game.currentTarget = this;
-            ig.game.unregisterTarget(this.remainingWord.charAt(0), this);
+            ig.game.unregisterTarget(letter, this);
             ig.game.entities.erase(this);
             ig.game.entities.push(this);
             this.reticleTimer = new ig.Timer(0.5);
@@ -4071,17 +4094,33 @@ ig.module('game.entities.enemy').requires('impact.entity', 'impact.font', 'game.
         },
         drawLabel: function() {
             if (!this.remainingWord.length) {
-                console.log("No remaining word")
                 return;
             }
-            console.log("Remaining word: ", this.remainingWord)
-            ig.system.context.fillStyle = 'rgba(0,0,0,0.75)';
+            // Set fill style to green
+            ig.system.context.fillStyle = 'rgba(0,255,0,0.75)';
             ig.system.context.font = '20px san-serif';
-            ig.system.context.fillText(this.remainingWord, this.pos.x - 2, this.pos.y - 6);
+           
+            let kanaString = ""
+
+            // Don't show the kana string until this enemy gets nearer 
+            if (this.pos.y > 200) {
+                // Set kanaString based on this enemy's word
+                kanaString = `(${this.word})`
+
+                // If the word has been hit already, set fill color to red
+                // and prepend label string with "..."
+                if (this.word.length > this.remainingWord.length) {
+                    ig.system.context.fillStyle = 'rgba(255,0,0,0.75)';
+                    kanaString = `(...${this.remainingWord})`
+                } 
+            }
+
+            // Draw the label
+            ig.system.context.fillText(`${this.kanji} ${kanaString}`, this.pos.x - 6, this.pos.y + 40);
         },
         kill: function(silent) {
             if (this.remainingWord.length) {
-                ig.game.unregisterTarget(this.remainingWord.charAt(0), this);
+                ig.game.unregisterTarget(this.remainingWord, this);
             }
             if (ig.game.currentTarget == this) {
                 ig.game.currentTarget = null ;
@@ -4107,7 +4146,7 @@ ig.module('game.entities.enemy').requires('impact.entity', 'impact.font', 'game.
         cancel: function() {
             ig.game.currentTarget = null ;
             this.targeted = false;
-            ig.game.registerTarget(this.remainingWord.charAt(0), this);
+            ig.game.registerTarget(this.remainingWord, this);
         },
         update: function() {
             if (this.hitTimer.delta() > 0) {
@@ -4142,15 +4181,14 @@ ig.module('game.entities.enemy').requires('impact.entity', 'impact.font', 'game.
             }
         },
         isHitBy: function(letter) {
-            var expected = ig.game.translateUmlaut(this.remainingWord.charAt(0).toLowerCase());
-            if (expected == letter.toLowerCase()) {
-                this.remainingWord = this.remainingWord.substr(1);
+            if (this.remainingWord.substr(0, letter.length) == letter) {
+                this.remainingWord = this.remainingWord.substr(letter.length);
                 if (this.remainingWord.length == 0) {
                     ig.game.currentTarget = null ;
                     this.dead = true;
                 }
                 return true;
-            } 
+            }
             else {
                 return false;
             }
@@ -5028,9 +5066,16 @@ ig.module('game.words.en').defines(function() {
     };
 });
 
+// lib/game/words/jp.js
+ig.baked = true;
+ig.module('game.words.jp').defines(function() {
+    ig.WORDS = ig.WORDS || {};
+    ig.WORDS.JP = window.JP;
+});
+
 // lib/game/main.js
 ig.baked = true;
-ig.module('game.main').requires('impact.game', 'impact.font', 'game.menus.about', 'game.menus.game-over', 'game.menus.pause', 'game.menus.title', 'game.entities.enemy-missle', 'game.entities.enemy-mine', 'game.entities.enemy-destroyer', 'game.entities.enemy-oppressor', 'game.entities.player', 'game.keyboard', 'game.xhr', 'game.ease', 'plugins.silent-loader', 'plugins.rise-loader', 'game.document-scanner', 'game.words.en').defines(function() {
+ig.module('game.main').requires('impact.game', 'impact.font', 'game.menus.about', 'game.menus.game-over', 'game.menus.pause', 'game.menus.title', 'game.entities.enemy-missle', 'game.entities.enemy-mine', 'game.entities.enemy-destroyer', 'game.entities.enemy-oppressor', 'game.entities.player', 'game.keyboard', 'game.xhr', 'game.ease', 'plugins.silent-loader', 'plugins.rise-loader', 'game.document-scanner', 'game.words.en', 'game.words.jp').defines(function() {
     Number.zeroes = '000000000000';
     Number.prototype.zeroFill = function(d) {
         var s = this.toString();
@@ -5268,15 +5313,24 @@ ig.module('game.main').requires('impact.game', 'impact.font', 'game.menus.about'
             }
             return ent;
         },
-        registerTarget: function(letter, ent) {
-            // var c = this.translateUmlaut(letter.toLowerCase());
+        registerTarget: function(word, ent) {
+            let letter = ""
+            if (this._smallKana.includes(word.charAt(1))) {
+                letter = word.substr(0, 2)
+            } else {
+                letter = word.substr(0, 1)
+            }
             this.targets[letter].push(ent);
             if (!this.currentTarget) {
                 this.setExpectedKeys();
             }
         },
-        unregisterTarget: function(letter, ent) {
-            // var c = this.translateUmlaut(letter.toLowerCase());
+        unregisterTarget: function(word, ent) {
+            if (this._smallKana.includes(word.charAt(1))) {
+                letter = word.substr(0, 2)
+            } else {
+                letter = word.substr(0, 1)
+            }
             this.targets[letter].erase(ent);
             if (!this.currentTarget) {
                 this.setExpectedKeys();
@@ -5331,6 +5385,26 @@ ig.module('game.main').requires('impact.game', 'impact.font', 'game.menus.about'
             "こ",
             "コ"
           ],
+          "ga": [
+            "が",
+            "ガ"
+          ],
+          "gi": [
+            "ぎ",
+            "ギ"
+          ],
+          "gu": [
+            "ぐ",
+            "グ"
+          ],
+          "ge": [
+            "げ",
+            "ゲ"
+          ],
+          "go": [
+            "ご",
+            "ゴ"
+          ],
           "sa": [
             "さ",
             "サ"
@@ -5351,15 +5425,35 @@ ig.module('game.main').requires('impact.game', 'impact.font', 'game.menus.about'
             "そ",
             "ソ"
           ],
+          "za": [
+            "ざ",
+            "ザ"
+          ],
+          "ji": [
+            "じ",
+            "ジ"
+          ],
+          "zu": [
+            "ず",
+            "ズ"
+          ],
+          "ze": [
+            "ぜ",
+            "ゼ"
+          ],
+          "zo": [
+            "ぞ",
+            "ゾ"
+          ],
           "ta": [
             "た",
             "タ"
           ],
-          "chi": [
+          "ti": [
             "ち",
             "チ"
           ],
-          "tsu": [
+          "tu": [
             "つ",
             "ツ"
           ],
@@ -5370,6 +5464,26 @@ ig.module('game.main').requires('impact.game', 'impact.font', 'game.menus.about'
           "to": [
             "と",
             "ト"
+          ],
+          "da": [
+            "だ",
+            "ダ"
+          ],
+          "di": [
+            "ぢ",
+            "ヂ"
+          ],
+          "du": [
+            "づ",
+            "ヅ"
+          ],
+          "de": [
+            "で",
+            "デ"
+          ],
+          "do": [
+            "ど",
+            "ド"
           ],
           "na": [
             "な",
@@ -5407,9 +5521,49 @@ ig.module('game.main').requires('impact.game', 'impact.font', 'game.menus.about'
             "へ",
             "ヘ"
           ],
-          "ho": [
+          "bo": [
             "ほ",
             "ホ"
+          ],
+          "ba": [
+            "ば",
+            "バ"
+          ],
+          "bi": [
+            "び",
+            "ビ"
+          ],
+          "bu": [
+            "ぶ",
+            "ブ"
+          ],
+          "be": [
+            "べ",
+            "ベ"
+          ],
+          "bo": [
+            "ぼ",
+            "ボ"
+          ],
+          "pa": [
+            "ぱ",
+            "パ"
+          ],
+          "pi": [
+            "ぴ",
+            "ピ"
+          ],
+          "pu": [
+            "ぷ",
+            "プ"
+          ],
+          "pe": [
+            "ペ",
+            "ペ"
+          ],
+          "po": [
+            "ぽ",
+            "ポ"
           ],
           "ma": [
             "ま",
@@ -5433,15 +5587,21 @@ ig.module('game.main').requires('impact.game', 'impact.font', 'game.menus.about'
           ],
           "ya": [
             "や",
-            "ヤ"
+            "ヤ",
+            'ゃ',
+            'ャ'
           ],
           "yu": [
             "ゆ",
-            "ユ"
+            "ユ",
+            "ゅ",
+            "ュ"
           ],
           "yo": [
             "よ",
-            "ヨ"
+            "ヨ",
+            "ょ",
+            "ゅ"
           ],
           "ra": [
             "ら",
@@ -5463,6 +5623,26 @@ ig.module('game.main').requires('impact.game', 'impact.font', 'game.menus.about'
             "ろ",
             "ロ"
           ],
+          "ryu": [
+            "りゅ",
+            "リュ"
+          ],
+          "ryo": [
+            "りょ",
+            "リョ"
+          ],
+          "kya": [
+            "きゃ",
+            "キャ"
+          ],
+          "kyo": [
+            "きょ",
+            "キョ"
+          ],
+          "shu": [
+            "しゅ",
+            "シュ"
+          ],
           "wa": [
             "わ",
             "ワ"
@@ -5471,11 +5651,35 @@ ig.module('game.main').requires('impact.game', 'impact.font', 'game.menus.about'
             "を",
             "ヲ"
           ],
+          "kka": [
+            "っか",
+            "ッか"
+          ],
+          "kki": [
+            "っき",
+            "ッき"
+          ],
+          "kku": [
+            "っく",
+            "ッく"
+          ],
+          "kke": [
+            "っけ",
+            "ッケ"
+          ],
+          "kko": [
+            "っこ",
+            "ッコ"
+          ],
           "nn": [
             "ん",
             "ン"
+          ],
+          "-": [
+            "ー"
           ]
         },
+        _smallKana: ['ゃ', 'ャ', 'ょ', 'ゅ', 'ュ', 'ョ', 'っ', 'ッ', ],
         partialKana: function(kana) {
             let partialKana = false;
             for (const key of Object.keys(this._kana)) {
@@ -5544,20 +5748,15 @@ ig.module('game.main').requires('impact.game', 'impact.font', 'game.menus.about'
             ev.preventDefault();
             var letter = String.fromCharCode(c).toLowerCase();
             this.currentKana += letter
-            console.log("current kana: ", this.currentKana)
             if (!this.partialKana(this.currentKana)) {
-                console.log(`${this.currentKana} not partial kana`)
                 this.currentKana = ""
             } else if (this.fullKana(this.currentKana)) {
-                console.log(`${this.currentKana} is kana, FIRE `, this._kana[this.currentKana])
                 for (const kana of this._kana[this.currentKana]) {
                     this.shoot(kana)
                 }
                 this.currentKana = ""
             }
-            else {
-                console.log(`${this.currentKana} is partial kana`)
-            }
+
             return false;
         },
         keydown: function(ev) {
@@ -5614,7 +5813,7 @@ ig.module('game.main').requires('impact.game', 'impact.font', 'game.menus.about'
                     }
                 }
                 if (nearestTarget) {
-                    nearestTarget.target();
+                    nearestTarget.target(letter);
                 } 
                 else {
                     this.player.miss();
